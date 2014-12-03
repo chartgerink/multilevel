@@ -30,7 +30,10 @@ summary(m0)
 ```
 
 ## Question 3
-The estimated rate parameter, or $\lambda$, is `r round(log(coef(m0)), 2)`. This is the grand mean of the number of stops in drug-related crimes.
+The estimated rate parameter of the Poisson distribution is , or $\lambda$, is `r round(exp(coef(m0)), 2)`. This is the grand mean of the number of stops in drug-related crimes; this you can see when running the following command:
+```{r}
+mean(stops$stops)
+```
 
 ## Question 4
 ```{r}
