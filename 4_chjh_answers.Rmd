@@ -1,0 +1,80 @@
+---
+title: "Multilevel tutorial 4, part II"
+output: html_document
+---
+### Setup
+```{r, echo=TRUE}
+# Load packages
+if(!require(lme4)){install.packages('lme4')}
+if(!require(ggplot2)){install.packages('ggplot2')}
+require(ggplot2)
+require(lme4)
+
+# Source the inv.logit and logit functions for ease of use.
+source('http://pastebin.com/raw.php?i=v1PDDYz7')
+setwd('D:/files/teaching/2014multilevel/')
+```
+
+## Question 1
+```{r}
+stops <- read.table('4_stops.dat.txt', header=TRUE)
+# Select only drug related crimes
+stops <- stops[stops$crime == 4,]
+```
+After selecting for drug-related crimes, a remaining `r dim(stops)[1]` rows of data remain.
+
+## Question 2
+```{r}
+m0 <- glm(stops ~ 1, data=stops, family=poisson)
+summary(m0)
+```
+
+## Question 3
+The estimated rate parameter, or $\lambda$, is `r round(log(coef(m0)), 2)`. This is the grand mean of the number of stops in drug-related crimes.
+
+## Question 4
+```{r}
+m1 <- glm(stops ~ 1 + pop, data=stops, family=poisson)
+summary(m1)
+anova(m1, m0, test='Chisq')
+```
+The summary for the model with the fixed effect of population indicates that population shows evidence that it matters in predicting the number of stops. Because this is the only parameter added, the model comparison test reflects this significance, where the model with the fixed effect of population performs better than the intercept-only model.
+
+## Question 5
+```{r}
+qplot(rpois(10000, coef(m1)[1] + coef(m1)[2] * summary(stops$pop)[2]),
+      xlab='poisson distribution, 25P')
+qplot(rpois(10000, coef(m1)[1] + coef(m1)[2] * summary(stops$pop)[5]),
+      xlab='poisson distribution, 75P')
+```
+
+## Question 6
+```{r}
+m2 <- glmer(stops ~ 1 + (1 | precinct), data=stops, family=poisson)
+summary(m2)
+```
+
+## Question 7
+```{r}
+m3 <- glmer(stops ~ 1 + pop + (1 | precinct), data=stops, family=poisson)
+summary(m3)
+anova(m3, m2, test='Chisq')
+```
+The model with the fixed effect performs significantly better.
+
+## Question 8
+```{r}
+m4 <- glmer(stops ~ 1 + pop + eth + (1 | precinct), data=stops, family=poisson)
+summary(m4)
+anova(m4, m2, test='Chisq')
+```
+The model with the fixed effects fits significantly better than the random-intercept-only model.
+
+## Question 9
+Based on the results from the previous model, the parameter is highest, ceteris paribus, for ethnicity 1, i.e., black.
+
+Based on the model's warning messages, it might be advisable to check these results after rescaling?
+
+## Question 10
+Variance in the precincts is highly equal for both model 3 and model 4. It thus seems that the variance of stops due to precincts, and due to ethnicity are distinct.
+
