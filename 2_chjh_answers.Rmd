@@ -1,0 +1,79 @@
+---
+title: "Multilevel tutorial 2, part II"
+output: html_document
+---
+### Setup
+```{r, echo=TRUE}
+# Load packages
+if(!require(lme4)){install.packages('lme4')}
+if(!require(ggplot2)){install.packages('ggplot2')}
+require(ggplot2)
+require(lme4)
+
+# Source the inv.logit and logit functions for ease of use.
+source('http://pastebin.com/raw.php?i=v1PDDYz7')
+setwd('D:/files/teaching/2014multilevel/')
+```
+
+## Question 1
+```{r}
+polls <- read.table('2_polls.subset.dat')
+str(polls)
+```
+The page does not work anymore so we will have to make due with the description inside the dataset.
+
+## Question 2
+The dataset contains data from `r length(unique(polls$state))` unique states.
+
+## Question 3
+```{r}
+M1 <- glm(bush ~ 1, data=polls, family=binomial(link="logit"))
+```
+The intercept for the intercept model is `r M1$coefficients[1]`, which is equal to a probability of `r inv.logit(M1$coefficients[1])`.
+
+## Question 4
+```{r}
+M2 <- glmer(bush ~ 1 + (1 | state), data=polls, family=binomial(link="logit"))
+print(M2)
+```
+The estimated variance in the intercept is estimated at `r .3688^2`, which results in a variance of `r inv.logit(.3688^2)` in the probabilities, which is large. This indicates that the base rate for voting pro-Bush varies highly across states.
+
+## Question 5
+```{r}
+M3 <- glmer(bush ~ 1 + age + (1 | state), data=polls, family=binomial(link="logit"))
+summary(M3)
+```
+The results indicate that age is not a significant predictor, which is corroborated by a model comparison, p = `r round(anova(M3, M2, test="Chisq")$Pr[2],3)`.
+
+## Question 6
+```{r}
+M4 <- glmer(bush ~ 1 + age + (1 + age | state), data=polls, family=binomial(link="logit"))
+summary(M4)
+```
+The variance for the random effect of age is only `r .004121*.004121`, which is small. Model comparison indicates that this new model, with random effect of age, does not fit better than the previous model, p = `r round(anova(M4, M3, test="Chisq")$Pr[2],3)`.
+
+## Question 7
+```{r, echo=FALSE}
+plot(jitter(polls$age), jitter(polls$bush), type="p")
+curve(inv.logit(fixef(M4)[1] + fixef(M4)[2] * x), add=TRUE, col="black", lwd=2)
+for(i in c(1:51)){
+  curve(inv.logit(coef(M4)$state[i,1] + coef(M4)$state[i,2] * x), add=TRUE, col="grey")
+}
+```
+
+## Question 8
+I would personally prefer the random intercept model, because there is clear variance in the intercept, but not in the effects of age. If seriously considering the topic, I would revisit what other variables might matter, such as education.
+
+## Question 9
+See above.
+
+## Question 10
+
+
+
+```{r}
+#mer(y ~ 1 + (1 | group) + x, data=, family=binomial(link="logit"))
+#coef()
+#fixef()
+#ranef()
+```

@@ -1,0 +1,62 @@
+---
+title: "Multilevel tutorial 3, part II"
+author: "chjh"
+date: "Tuesday, November 18, 2014"
+output: html_document
+---
+
+### Setup
+```{r, echo=TRUE}
+# Load packages
+if(!require(lme4)){install.packages('lme4')}
+if(!require(ggplot2)){install.packages('ggplot2')}
+require(ggplot2)
+require(lme4)
+
+# Source the inv.logit and logit functions for ease of use.
+source('http://pastebin.com/raw.php?i=v1PDDYz7')
+setwd('D:/files/teaching/2014multilevel/')
+```
+
+## Question 1
+```{r}
+purch <- read.csv('3_purchase_data.csv')
+```
+The dataset includes `r unique(purch$customer)` subjects, `r unique(purch$product_id)` different products, `r unique(purch$advertisement)` different type of ads, the maximum number of purchases for one subject is `r max(purch$order)`, etc.
+
+## Question 2
+```{r}
+qplot(purchase, data=purch, facets=.~product_id, binwidth=1)
+```
+
+## Question 3
+```{r}
+m0 <- glmer(purchase ~ 1 + (1 | customer), data=purch, family=binomial(link='logit'))
+summary(m0)
+```
+It does seem like there is heterogeneity in purchase behavior, because the variance of the intercept is .19, which, given that purchase is a dichotomous variable, is considerable.
+
+## Question 4
+```{r}
+m1 <- glmer(purchase ~ 1 + (1 | customer) + (1 | product_id), data=purch, family=binomial(link='logit'))
+summary(m1)
+anova(m0, m1, test="Chisq")
+```
+The model does not explain any additional variance, and indicates that the variance in the intercept due to product_id is negligible. This is confirmed by the model comparison.
+
+## Question 5
+```{r}
+m2 <- glmer(purchase ~ 1 + strategy + (1 | customer) + (1 | product_id), data=purch, family=binomial(link='logit'))
+summary(m2)
+m3 <- glmer(purchase ~ 1 + strategy + (1 | customer) + (1 | product_id) + (1 | strategy), data=purch, family=binomial(link='logit'))
+summary(m3)
+
+anova(m3,m2, m1, test="Chisq")
+```
+These models indicate that adding the term strategy does not systematically add to the previous models, also not when allowing the intercept to vary on strategies.
+
+## Question 6
+Try it yourself. What makes sense?
+
+## Question 7 
+Simulated data based on the model will yield the model, and approximate the original data. Of course there will be differences, because the model does not contain the error. Use the latest model coefficients, with the variances included to compute the probability for certain scores, and put this into rbinom() to sample a purchase yes/no.

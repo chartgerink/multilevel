@@ -1,0 +1,82 @@
+---
+title: "Multilevel tutorial 1, part II"
+output: html_document
+---
+### Setup
+```{r, echo=TRUE}
+# Load packages
+require(ggplot2)
+
+# Source the inv.logit and logit functions for ease of use.
+source('http://pastebin.com/raw.php?i=v1PDDYz7')
+setwd('D:/files/teaching/2014multilevel/')
+```
+
+## Question 1
+```{r, message=FALSE}
+wells <- read.table('1_wells.dat')
+qplot(dist, data=wells, xlab="Distance", ylab="Frequency")
+```
+
+## Question 2
+```{r}
+M1 <- glm(switch ~ 1 + dist, data=wells, family=binomial(link="logit"))
+print(M1)
+```
+
+## Question 3
+```{r}
+wells$dist100 <- wells$dist / 100
+M2 <- glm(switch ~ 1 + dist100, data=wells, family=binomial(link="logit"))
+print(M2)
+```
+
+The model has the exact same model fit, only the coefficient of the predictor distance changes by two decimal places; .0062 becomes .62).
+
+## Question 4
+```{r}
+ggplot(wells, aes(dist, switch)) + geom_point() + stat_function(fun=function(X) inv.logit(coef(M1)[1]+coef(M1)[2]*X))
+```
+
+## Question 5
+```{r}
+qplot(arsenic, data=wells)
+M3 <- glm(switch ~ 1 + dist100 + arsenic, data=wells, family=binomial(link="logit"))
+print(anova(M2, M3, test="Chisq"))
+```
+
+I would choose M3, because the model fit is significantly better, $\chi^{2}$ = `r print(anova(M2, M3, test="Chisq"))$Deviance[2]`, p = `r print(anova(M2, M3, test="Chisq"))$Pr[2]`, indicating the reduction of unexplained variance is more than would be expected if arsenic would not be able to explain the switching of wells at the population level.
+
+## Question 6
+```{r}
+ggplot(wells, aes(arsenic, switch)) + geom_point() + stat_function(fun=function(x) inv.logit(coef(M3)[1]+coef(M3)[2]*0+coef(M3)[3]*x), col="steelblue") + stat_function(fun=function(x) inv.logit(coef(M3)[1]+coef(M3)[2]*.5+coef(M3)[3]*x), col="red")
+```
+
+## Question 7
+```{r}
+M4 <- glm(switch ~ 1 + dist100 + arsenic + arsenic*dist100, data=wells, family=binomial(link="logit"))
+print(anova(M3, M4, test="Chisq"))
+```
+
+Model 4 does not significantly reduce the unexplained variance, $\chi^{2}=$`r anova(M3, M4, test="Chisq")$Deviance[2]`, p = `r anova(M3, M4, test="Chisq")$Pr[2]`. Hence, not enough evidence is present for an interaction effect in the population.
+
+## Question 8
+```{r}
+wells$dist100centred <- wells$dist100 - mean(wells$dist100)
+wells$arscentred <- wells$arsenic - mean(wells$arsenic)
+M4 <- glm(switch ~ 1 + dist100centred + arscentred + arscentred*dist100centred, data=wells, family=binomial(link="logit"))
+```
+
+The mean respondent in the dataset has a probability of `r inv.logit(coef(M4)[1])` to switch. There are significant main effects of distance (b=`r coef(M4)[2]`, p =`r coef(summary(M4))[2,4]`) and arsenic (b=`r coef(M4)[3]`, p=`r coef(summary(M4))[3,4]`) on the probability to switch, but not enough evidence for an interaction effect (b=`r coef(M4)[4]`, p = `r coef(summary(M4))[4,4]`).
+
+## Question 9
+```{r} 
+ggplot(wells, aes(arsenic, switch)) +
+  geom_point() +
+  stat_function(fun=function(x) inv.logit(coef(M4)[1]+coef(M4)[2]*0+coef(M4)[3]*x), col="steelblue") +
+  stat_function(fun=function(x) inv.logit(coef(M4)[1]+coef(M4)[2]*.5+coef(M4)[3]*x), col="red") +
+  stat_function(fun=function(x) inv.logit(coef(M3)[1]+coef(M3)[2]*0+coef(M3)[3]*x), col="steelblue", alpha=.3) +
+  stat_function(fun=function(x) inv.logit(coef(M3)[1]+coef(M3)[2]*.5+coef(M3)[3]*x), col="red", alpha=.3)
+```
+
+The transparent lines are from M3, whereas the solid lines are from M4. Hence, we see the models differ somewhat, but not by much. The statistical results indicate there is no evidence to conclude that M4 works systematically better.
