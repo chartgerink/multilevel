@@ -1,0 +1,155 @@
+---
+title: "Multilevel tutorial 5, part II"
+output: html_document
+---
+### Setup
+```{r, echo=TRUE}
+# Load packages
+if(!require(lme4)){install.packages('lme4')}
+if(!require(ggplot2)){install.packages('ggplot2')}
+if(!require(survival)){install.packages('survival')}
+if(!require(foreign)){install.packages('foreign')}
+require(ggplot2)
+require(lme4)
+require(survival)
+require(foreign)
+
+# Source the inv.logit and logit functions for ease of use.
+source('http://pastebin.com/raw.php?i=v1PDDYz7')
+setwd('D:/files/teaching/2014multilevel/')
+```
+
+## Question 1
+```{r}
+set.seed(180)
+n <- 200 # Number of people
+id <- paste("PP", c(1:n)) # Create an ID
+time <- rpois(n, 5) # Random event occurrence
+censor <- rep(0,n)
+# Random censoring of highest
+censor[time==max(time)] <- 1- rbinom( length(time[time==max(time)]), 1, .5)
+person.data <- data.frame(
+id = id,
+time = time,
+censor = censor)
+print(person.data)
+
+library(plyr)
+# Get lowest:
+min <- min(person.data$time)
+# For each id create a data.frame
+person.period <- ddply(person.data, .(id), function(x, min){
+max <- x$time
+id = rep(x$id, (max+1)-min)
+period = c(min: max)
+event = c(
+rep(0, max-min),
+ifelse(x$censor==0,1,0)
+)
+data.frame(id=id, period=period, event=event)
+}, min=min)
+print(person.period)
+
+mytable <- table(person.data$id, person.data$time)
+life.table <- data.frame(margin.table(mytable, 2))
+names(life.table) <- c("period", "count")
+# risk:
+life.table$risk <- n - cumsum(life.table$count) + life.table$count
+# censor:
+life.table$censor <- c(rep(0, length(life.table$risk)-1), sum(person.data$censor))
+# occur 
+life.table$occur <- life.table$count - life.table$censor
+# hazard
+life.table$hazard <- life.table$occur / life.table$risk
+plot(life.table$hazard, type="l")
+# survival
+survive <- rep(NA, length(life.table$hazard))
+survive[1] <- 1 * (1- life.table$hazard[1])
+for(i in 2:length(life.table$hazard)){
+  survive[i] <- survive[i-1] * (1- life.table$hazard[i])
+}
+life.table$survive <- survive
+head(life.table)
+plot(life.table$survive, type='l')
+```
+
+## Question 2
+```{r}
+min <- min(person.data$time)
+# For each id create a data.frame
+person.period <- ddply(person.data, .(id), function(x, min){
+  max <- x$time
+	id = rep(x$id, (max+1)-min)
+	period = c(min: max)
+	event = c(
+		rep(0, max-min),
+		ifelse(x$censor==0,1,0)
+		)
+	data.frame(id=id, period=period, event=event)
+	}, min=min) 
+
+head(person.period)
+```
+
+## Question 3
+```{r}
+pp.data <- person.period
+
+unique.period <- unique(pp.data$period)
+for(i in unique.period){
+  new.col <- ncol(pp.data)+1  # Which column to update?
+	# Add identifier for period
+	pp.data[, new.col] <- ifelse(pp.data$period==i, 1,0)   
+	x <- length(names(pp.data))
+	names(pp.data) <- c(names(pp.data)[1:x-1], paste("Period", i, sep="_"))
+}
+
+head(pp.data)
+```
+
+## Question 4
+```{r}
+data <- read.spss('5_firstsex(1).sav', use.value.labels = FALSE, to.data.frame = TRUE)
+min <- min(data$TIME)
+# For each id create a data.frame
+pp <- ddply(data, .(ID), function(x, min){
+  max <- x$TIME
+	id = rep(x$ID, (max+1)-min)
+	period = c(min: max)
+	event = c(
+		rep(0, max-min),
+		ifelse(x$CENSOR==0,1,0)
+		)
+	data.frame(id=id, period=period, event=event)
+	}, min=min) 
+
+head(pp)
+
+# Add dummies
+unique.period <- unique(pp$period)
+for(i in unique.period){
+	new.col <- ncol(pp)+1  # Which column to update?
+	# Add identifier for period
+	pp[, new.col] <- ifelse(pp$period==i, 1,0)   
+	x <- length(names(pp))
+	names(pp) <- c(names(pp)[1:x-1], paste("Period", i, sep="_"))
+}
+head(pp)
+```
+
+## Question 5
+```{r}
+mod1 <- glm(event ~ -1 + Period_7 + Period_8 + Period_9 + Period_10 + Period_11 + Period_12, data=pp, family=binomial(link=probit))
+summary(mod1)
+```
+
+## Question 6 & 7
+```{r}
+coeff <- coef(mod1)
+hazrate <- inv.logit(coeff)  # Hazard.
+plot(hazrate, type='l')
+risk0 <- length(unique(data$ID))
+# surv <- c(risk0-(risk0*hazrate[1]),
+#           (risk0-(risk0*hazrate[1]))
+
+```
