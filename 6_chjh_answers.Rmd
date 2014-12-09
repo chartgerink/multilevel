@@ -1,0 +1,144 @@
+---
+title: "Multilevel tutorial 6, part II"
+output: html_document
+---
+### Setup
+```{r, echo=TRUE}
+# Load packages
+if(!require(lme4)){install.packages('lme4')}
+if(!require(ggplot2)){install.packages('ggplot2')}
+if(!require(survival)){install.packages('survival')}
+if(!require(foreign)){install.packages('foreign')}
+require(ggplot2)
+require(lme4)
+require(survival)
+require(foreign)
+require(plyr)
+
+# Source the inv.logit and logit functions for ease of use.
+source('http://pastebin.com/raw.php?i=v1PDDYz7')
+setwd('D:/files/teaching/2014multilevel/')
+
+
+```
+
+# Question 1
+This is already a person period dataset. First revert it back to person data.
+```{r}
+load('6_Tenure.RData')
+tenure.person <- ddply(tenure, .(ID), function(x){
+  data.frame(period=max(x$PERIOD), event=max(x$EVENT), censor=ifelse(max(x$EVENT == 1),0,1))})
+
+head(tenure.person)
+
+n = length(unique(tenure.person$ID))
+time <- unique(tenure$PERIOD)
+count <- margin.table(table(tenure.person$ID, tenure.person$period),2)
+life.table <- data.frame(time=time)
+life.table$risk <- n - cumsum(count) + count
+life.table$occur <- ddply(tenure, .(PERIOD), function(x){sum(x$EVENT)})[,2]
+life.table$censor <- c(rep(0, length(life.table$time)-1), life.table$risk[length(life.table$time)] - life.table$occur[length(life.table$time)])  
+
+life.table$hazard <- life.table$occur / life.table$risk
+
+# survival: slightly trickier. Lets create a loop:
+life.table$survival <- rep(NA, length(life.table$time))
+for(i in life.table$time){
+  # for the first timepoint:
+	if(i == 1){
+		life.table$survival[i] <- 1 - life.table$hazard[i]
+	} else {
+		life.table$survival[i] <- life.table$survival[i-1] * (1- life.table$hazard[i])
+	}
+}
+# check:
+life.table
+```
+
+# QUestion 2
+```{r}
+tenure$PERIOD2 <- tenure$PERIOD^2
+tenure$PERIOD3 <- tenure$PERIOD^3
+tenure$PERIOD4 <- tenure$PERIOD^4
+
+m1 <- glm(EVENT ~ PERIOD + PERIOD2 + PERIOD3 + PERIOD4, data= tenure, family=binomial)
+b <- coef(m1)
+yn <- b[1] + b[2]*time + b[3]*time^2 + b[4]*time^3 + b[5]*time^4
+life.table$phard <- inv.logit(yn)
+
+life.table
+```
+
+# Question 3
+```{r}
+load('6_Depression.RData')
+```
+
+# Question 4
+```{r}
+depression$PERIOD <- depression$PERIOD - mean(depression$PERIOD)
+depression$PERIOD2 <- depression$PERIOD^2
+depression$PERIOD3 <- depression$PERIOD^3
+depression$PERIOD4 <- depression$PERIOD^4
+depression$PERIOD5 <- depression$PERIOD^5
+depression$PERIOD6 <- depression$PERIOD^6
+depression$PERIOD7 <- depression$PERIOD^7
+depression$PERIOD8 <- depression$PERIOD^8
+
+m0 <- glm(EVENT ~ 1, data=depression, family=binomial)
+m1 <- glm(EVENT ~ 1 + PERIOD, data=depression, family=binomial)
+m2 <- glm(EVENT ~ 1 + PERIOD + PERIOD2, data=depression, family=binomial)
+m3 <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3, data=depression, family=binomial)
+m4 <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4, data=depression, family=binomial)
+m5 <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + PERIOD5, data=depression, family=binomial)
+m6 <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + PERIOD5 + PERIOD6, data=depression, family=binomial)
+m7 <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + PERIOD5 + PERIOD6 + PERIOD7, data=depression, family=binomial)
+m8 <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + PERIOD5 + PERIOD6 + PERIOD7 + PERIOD8, data=depression, family=binomial)
+
+
+x <- anova(m0, m1, m2, m3, m4, m5, m6, m7, m8, test="Chisq")
+summary(x)
+```
+
+It seems like the third polynomial provides the best increase. AIC and BIC will not be a problem, because the log-likelihood difference is larger than the penalty for adding one parameter (2*parameters added for AIC, for example).
+
+# Question 5
+```{r}
+b <- coef(m3)
+time <- unique(depression$PERIOD)
+yn <- b[1] + b[2]*time + b[3]*(time)^2 + b[4]*(time)^3
+plot(inv.logit(yn))
+```
+
+# Question 6
+```{r}
+m3g <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + FEMALE, data=depression, family=binomial)
+
+b <- coef(m3g)
+time <- unique(depression$PERIOD)
+yn <- b[1] + b[2]*time + b[3]*(time)^2 + b[4]*(time)^3 + b[5] * 0
+plot(inv.logit(b[1] + b[2]*time + b[3]*(time)^2 + b[4]*(time)^3 + b[5] * 1))
+lines(inv.logit(b[1] + b[2]*time + b[3]*(time)^2 + b[4]*(time)^3 + b[5] * 0))
+```
+
+# Question 7
+```{r}
+m4a <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + FEMALE, data=depression, family=binomial)
+m4b <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + FEMALE + CENSAGE, data=depression, family=binomial)
+m4c <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + FEMALE * CENSAGE, data=depression, family=binomial)
+anova(m4a, m4b, m4c, test="Chisq")
+```
+
+The interaction is nonsignificant, i.e., there is not enough evidence to suggest the assumption is invalid.
+
+# Question 8
+```{r}
+m4b <- glm(EVENT ~ (1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4) * FEMALE, data=depression, family=binomial)
+m4c <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + FEMALE + (PERIOD * FEMALE), data=depression, family=binomial)
+m4d <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + FEMALE + (PERIOD2 * FEMALE), data=depression, family=binomial)
+m4e <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + FEMALE + (PERIOD3 * FEMALE), data=depression, family=binomial)
+m4f <- glm(EVENT ~ 1 + PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + FEMALE + (PERIOD4 * FEMALE), data=depression, family=binomial)
+
+anova(m4a, m4b, m4c, m4d, m4e, m4f, test="Chisq")
+```
+There is not enough evidence that the Proportionality assumption is violated. The proportionality assumption is that the effect of an independent variable is nondependent on the timepoint (i.e., proportional across time). 
